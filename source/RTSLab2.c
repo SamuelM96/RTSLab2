@@ -11,6 +11,18 @@
 /* TODO: insert other include files here. */
 
 /* TODO: insert other definitions and declarations here. */
+typedef struct {
+  uint8_t version:4, ihl:4;
+  uint8_t tos;
+  uint16_t tl;
+  uint16_t inden;
+  uint16_t flags:3, fragOffet:13;
+  uint8_t ttl;
+  uint8_t protcol;
+  uint16_t checksum;
+  uint32_t saddr;
+  uint32_t daddr;
+} IPv4Header;
 
 /*
  * @brief   Application entry point.
