@@ -1,16 +1,9 @@
-/**
- * @file    RTSLab2.c
- * @brief   Application entry point.
- */
 #include <stdio.h>
 #include "board.h"
 #include "pin_mux.h"
 #include "clock_config.h"
 #include "MKW41Z4.h"
 
-/* TODO: insert other include files here. */
-
-/* TODO: insert other definitions and declarations here. */
 typedef struct {
   uint8_t version:4, ihl:4;
   uint8_t tos;
@@ -24,14 +17,13 @@ typedef struct {
   uint32_t daddr;
 } IPv4Header;
 
-/*
- * @brief   Application entry point.
- */
+
 int main(void) {
 
   	/* Init board hardware. */
     BOARD_InitBootPins();
     BOARD_InitBootClocks();
+
   	/* Init FSL debug console. */
     BOARD_InitDebugConsole();
 
