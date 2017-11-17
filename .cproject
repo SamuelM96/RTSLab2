@@ -614,4 +614,5 @@
 		<boardId>frdmkw41z</boardId>
 		<core>cm0plus</core>
 	</storageModule>
+	<storageModule moduleId="refreshScope"/>
 </cproject>
