@@ -53,12 +53,6 @@
 /* KSDK */
 #include "board.h"
 
-#ifdef cPWR_UsePowerDownMode
-#if (cPWR_UsePowerDownMode)
-#include "PWR_Interface.h"
-#endif
-#endif
-
 #ifdef FSL_RTOS_FREE_RTOS
 #include "FreeRTOSConfig.h"
 #endif
@@ -74,14 +68,8 @@
 * Private macros
 *************************************************************************************
 ************************************************************************************/
-#define gAppNumberOfTests_d (3)
+#define gAppNumberOfTests_d (1)
 #define App_NotifySelf() OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c)
-
-#ifdef FSL_RTOS_FREE_RTOS
-#if (configUSE_IDLE_HOOK)
-#define mAppIdleHook_c 1
-#endif
-#endif
 
 #ifndef mAppIdleHook_c
 #define mAppIdleHook_c 0
@@ -103,11 +91,11 @@ static void App_Thread (uint32_t param);
 /*Application event handler*/
 static void App_HandleEvents(osaEventFlags_t flags);
 /*Function that reads latest byte from Serial Manager*/
-static void App_UpdateUartData(uint8_t* pData);
+//static void App_UpdateUartData(uint8_t* pData);
 /*Application Init*/
 static void App_InitApp();
 /*Print shortcut menu values*/
-static void App_PrintTestParameters(bool_t bEraseLine);
+//static void App_PrintTestParameters(bool_t bEraseLine);
 /*Generic FSK RX callback*/
 static void App_GenFskReceiveCallback(uint8_t *pBuffer, 
                                       uint16_t bufferLength, 
@@ -124,21 +112,6 @@ static void App_NotifyAppThread(void);
 /*Timer callback*/
 static void App_TimerCallback(void* param);
 
-/*Handles all keyboard events*/
-#if gKeyBoardSupported_d && (gKBD_KeysCount_c > 0)   
-static void App_KeyboardCallBack(uint8_t events);
-#endif
-
-#if (cPWR_UsePowerDownMode)
-#if (mAppIdleHook_c)
-#define AppIdle_TaskInit()
-#define App_Idle_Task()
-#else
-static osaStatus_t AppIdle_TaskInit(void);
-static void App_Idle_Task(osaTaskParam_t argument);
-#endif /* (mAppIdleHook_c) */
-#endif /* (cPWR_UsePowerDownMode) */
-
 /************************************************************************************
 *************************************************************************************
 * Private memory declarations
@@ -147,14 +120,10 @@ static void App_Idle_Task(osaTaskParam_t argument);
 static uint8_t platformInitialized = 0;
 /*event used by the application thread*/
 static osaEventId_t mAppThreadEvt;
-/*variable to store key pressed by user*/
-static uint8_t mAppUartData = 0;
-/*variable to store button pressed by user*/
-static uint8_t mAppPbData = PB_INVALID;
 /*application state*/
 static app_states_t mAppState = gAppStateInit_c;
 /*set TRUE when user presses [ENTER] on logo screen*/
-static bool_t mAppStartApp = FALSE;
+//static bool_t mAppStartApp = FALSE;
 /*pointer to test currently running*/
 static pCtTestFunction pfCtCurrentTest = NULL;
 /*pointer to data associated to each event*/
@@ -170,13 +139,6 @@ static genfskEventStatus_t mAppGenfskStatus;
 extern uint8_t mAppGenfskId;
 /*extern MCU reset api*/
 extern void ResetMCU(void);
-
-#if (cPWR_UsePowerDownMode)
-#if (!mAppIdleHook_c)
-OSA_TASK_DEFINE( App_Idle_Task, gAppIdleTaskPriority_c, 1, gAppIdleTaskStackSize_c, FALSE );
-osaTaskId_t gAppIdleTaskId = 0;
-#endif
-#endif  /* cPWR_UsePowerDownMode */
 
 /*! *********************************************************************************
 * \brief  This is the first task created by the OS. This task will initialize 
@@ -211,10 +173,6 @@ void main_task(uint32_t param)
         RNG_GetRandomNo((uint32_t*)(&(pseudoRNGSeed[16])));
         RNG_SetPseudoRandomNoSeed(pseudoRNGSeed);
         
-#if gKeyBoardSupported_d && (gKBD_KeysCount_c > 0)        
-        KBD_Init(App_KeyboardCallBack);
-#endif
-        
         GENFSK_Init();
         
         /* GENFSK LL Init with default register config */
@@ -222,17 +180,6 @@ void main_task(uint32_t param)
         
         /*create app thread event*/
         mAppThreadEvt = OSA_EventCreate(TRUE);
-        
-#if (cPWR_UsePowerDownMode)
-#if (!mAppIdleHook_c)
-        AppIdle_TaskInit();
-#endif
-        PWR_Init();
-        PWR_DisallowDeviceToSleep();
-#else    
-        /*start serial flashing using all LEDs*/
-        LED_StartSerialFlash(LED1);
-#endif           
         
         /*initialize the application interface id*/
         Serial_InitInterface(&mAppSerId, 
@@ -264,74 +211,23 @@ void main_task(uint32_t param)
 ********************************************************************************** */
 void App_Thread (uint32_t param)
 {
-    osaEventFlags_t mAppThreadEvtFlags = 0;
+    osaEventFlags_t mAppThreadEvtFlags = gCtEvtWakeUp_c;
     
     while(1)
     {
-        (void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
         if(mAppThreadEvtFlags)
         {
-            if(mAppStartApp)
-            {
-                App_HandleEvents(mAppThreadEvtFlags);/*handle app events*/
-            }
-            else
-            {
-                if(mAppThreadEvtFlags & gCtEvtUart_c) /*if uart event*/
-                {
-                    App_UpdateUartData(&mAppUartData); /*read new byte*/
-                    if(mAppUartData == '\r')
-                    {
-                        mAppStartApp = TRUE;
-                        /*notify task again to start running*/
-                        App_NotifySelf();
-                    }
-                    else
-                    {
-                        /*if other key is pressed show screen again*/
-                        PrintMenu(cu8Logo, mAppSerId);
-                    }
-                }
-                
-                if(mAppThreadEvtFlags & gCtEvtKBD_c) /*if KBD event*/
-                {
-                    mAppStartApp = TRUE;
-                    /*notify task again to start running*/
-                    App_NotifySelf();
-                }
-            }
+        	App_HandleEvents(mAppThreadEvtFlags);/*handle app events*/
         }
+
+        (void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
+
         if(gUseRtos_c == 0) /*if bare-metal break while*/
         {
             break;
         } 
     }
 }
-
-#if gKeyBoardSupported_d && (gKBD_KeysCount_c > 0)   
-static void App_KeyboardCallBack(uint8_t events)
-{
-    switch (events)
-    {
-    case gKBD_EventPB1_c:        
-        mAppPbData = PB1_PRESSED;
-        break;       
-    case gKBD_EventPB2_c:        
-        mAppPbData = PB2_PRESSED;
-        break;        
-    case gKBD_EventLongPB1_c:
-        mAppPbData = PB1_LONG_PRESS;
-        break;
-    case gKBD_EventLongPB2_c:        
-        mAppPbData = PB2_LONG_PRESS;
-        break;
-    default:
-        break;
-    }
-    
-    OSA_EventSet(mAppThreadEvt, gCtEvtKBD_c);   
-}
-#endif
 
 /*! *********************************************************************************
 * \brief  The application event handler 
@@ -341,54 +237,22 @@ static void App_KeyboardCallBack(uint8_t events)
 ********************************************************************************** */
 void App_HandleEvents(osaEventFlags_t flags)
 {
-    if(flags & gCtEvtUart_c)
-    {
-        App_UpdateUartData(&mAppUartData);
-        if(CT_IsShortcutMenuEnabled())
-        {
-            /*if it is a shortcut key clear the flag so it is not handled twice*/
-            if(CT_UpdateShortcutKeyParam(mAppUartData))
-            {
-                App_PrintTestParameters(TRUE);
-            }
-        }
-    }
     switch(mAppState)
     {
+    case gAppStateIdle_c:
+    	break;
     case gAppStateInit_c:
         /*initialize app and map tests*/
         App_InitApp();
         /*enter app default state*/
-        mAppState = gAppStateIdle_c;
+        mAppState = gAppStateSelectTest_c;
         /*notify app task to move to new state*/
         App_NotifySelf();
         break;
-    case gAppStateIdle_c:
-        /*print main menu*/
-        PrintMenu(cu8MainMenu, mAppSerId);
-        /*print test params*/
-        App_PrintTestParameters(FALSE); 
-#if (cPWR_UsePowerDownMode)
-        LED_StopFlashingAllLeds();
-#endif /* (cPWR_UsePowerDownMode) */
-        mAppState = gAppStateSelectTest_c;
-        break;
     case gAppStateSelectTest_c:
-        if(flags & gCtEvtUart_c) /*if uart event*/
-        {
-            if(mAppUartData >= '1' && 
-               mAppUartData <= ('0' + gAppNumberOfTests_d)) /*select which test to run*/
-            {
-                pfCtCurrentTest = ppfCtAvailableTests[mAppUartData - '1'];
-                mAppState = gAppStateRunning_c;
-                App_NotifySelf();
-            }
-            else if(mAppUartData == '!')
-            {
-                ResetMCU();
-            }
-        }
-        
+    	pfCtCurrentTest = ppfCtAvailableTests[0];
+    	mAppState = gAppStateRunning_c;
+    	App_NotifySelf();
         break;
     case gAppStateRunning_c: /*event handling for test currently running*/
         if(flags & gCtEvtRxDone_c)
@@ -425,38 +289,10 @@ void App_HandleEvents(osaEventFlags_t flags)
                 App_NotifySelf();
             } 
         }
-        if(flags & gCtEvtUart_c)
-        {
-            pEvtAssociatedData = &mAppUartData;
-            if(pfCtCurrentTest(gCtEvtUart_c, pEvtAssociatedData))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
         if(flags & gCtEvtTimerExpired_c)
         {
             pEvtAssociatedData = NULL;
             if(pfCtCurrentTest(gCtEvtTimerExpired_c, pEvtAssociatedData))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
-#if (cPWR_UsePowerDownMode)
-        if(flags & gCtEvtWakeUp_c)
-        {
-            if(pfCtCurrentTest(gCtEvtWakeUp_c, NULL))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
-#endif /* (cPWR_UsePowerDownMode) */
-        if(flags & gCtEvtKBD_c)
-        {
-            pEvtAssociatedData = &mAppPbData;
-            if(pfCtCurrentTest(gCtEvtKBD_c, pEvtAssociatedData))
             {
                 mAppState = gAppStateIdle_c;
                 App_NotifySelf();
@@ -477,36 +313,13 @@ void App_HandleEvents(osaEventFlags_t flags)
 }
 
 /*! *********************************************************************************
-* \brief  This function is called each time SerialManager notifies the application
-*         task that a byte was received.
-*         The function checks if there are additional bytes in the SerialMgr  
-*         queue and simulates a new SM event if there is more data.
-* \param[in]  pData Pointer to where to store byte read.
-*
-********************************************************************************** */
-static void App_UpdateUartData(uint8_t* pData)
-{
-    uint16_t u16SerBytesCount = 0;
-    if(gSerial_Success_c == Serial_GetByteFromRxBuffer(mAppSerId, pData, &u16SerBytesCount))
-    {
-        Serial_RxBufferByteCount(mAppSerId, &u16SerBytesCount);
-        if(u16SerBytesCount)
-        {
-            (void)OSA_EventSet(mAppThreadEvt, gCtEvtUart_c);
-        }
-    } 
-}
-
-/*! *********************************************************************************
 * \brief  Application initialization. It installs the main menu callbacks and
 *         calls the Connectivity Test for Generic FSK init.
 *
 ********************************************************************************** */
 static void App_InitApp()
 {   
-   ppfCtAvailableTests[0] = CT_ContinuousTests;
-   ppfCtAvailableTests[1] = CT_PacketErrorRate;
-   ppfCtAvailableTests[2] = CT_RangeTest;
+   ppfCtAvailableTests[0] = CT_PacketErrorRate;
 
    /*register callbacks for the generic fsk LL */
    GENFSK_RegisterCallbacks(mAppGenfskId,
@@ -570,13 +383,6 @@ static void App_GenFskEventNotificationCallback(genfskEvent_t event,
            OSA_EventSet(mAppThreadEvt, gCtEvtRxFailed_c);
        }
    }
-#if (cPWR_UsePowerDownMode)
-   if(event & gGenfskWakeEvent)
-   {     
-       PWR_DisallowDeviceToSleep();
-       OSA_EventSet(mAppThreadEvt, gCtEvtWakeUp_c);
-   }
-#endif /* (cPWR_UsePowerDownMode) */
    /*not handling other events in this application*/
 }
 
@@ -593,83 +399,3 @@ static void App_TimerCallback(void* param)
 {
     OSA_EventSet(mAppThreadEvt, gCtEvtTimerExpired_c);
 }
-/*! *********************************************************************************
-* \brief  Prints the test parameters: mode, channel, TX power and payload length.
-*         Some or all of the above parameters are used throughout the tests.
-********************************************************************************** */
-static void App_PrintTestParameters(bool_t bEraseLine)
-{
-   PrintTestParams(gaConfigParams, bEraseLine, mAppSerId);  
-}
-
-#if (cPWR_UsePowerDownMode)
-static void App_Idle(void)
-{
-    PWRLib_WakeupReason_t wakeupReason;
-    
-    if( PWR_CheckIfDeviceCanGoToSleep() )
-    {
-        /* Enter Low Power */
-        wakeupReason = PWR_EnterLowPower();
-
-#if gKBD_KeysCount_c > 0      
-        /* Woke up on Keyboard Press */
-        if(wakeupReason.Bits.FromKeyBoard)
-        {
-            KBD_SwitchPressedOnWakeUp();
-            PWR_DisallowDeviceToSleep();
-        }
-#endif   
-    }
-    else
-    {
-        /* Enter MCU Sleep */
-        PWR_EnterSleep(); 
-    }
-}
-#endif /* cPWR_UsePowerDownMode */
-
-#if (mAppIdleHook_c)
-void vApplicationIdleHook(void)
-{
-#if (cPWR_UsePowerDownMode)
-    App_Idle();  
-#endif  
-}
-#else /* mAppIdleHook_c */
-#if (cPWR_UsePowerDownMode)
-static void App_Idle_Task(osaTaskParam_t argument)
-{
-    while(1)
-    {           
-        App_Idle();
- 
-        /* For BareMetal break the while(1) after 1 run */
-        if (gUseRtos_c == 0)
-        {
-            break;
-        }
-    }
-}
-
-static osaStatus_t AppIdle_TaskInit(void)
-{	     
-    if(gAppIdleTaskId)
-    {      
-        return osaStatus_Error;
-    }
-   
-    /* Task creation */
-    gAppIdleTaskId = OSA_TaskCreate(OSA_TASK(App_Idle_Task), NULL);
-    
-    if( NULL == gAppIdleTaskId )
-    {
-        panic(0,0,0,0);
-        return osaStatus_Error;
-    }
-
-    return osaStatus_Success;
-}
-#endif /* cPWR_UsePowerDownMode */
-#endif /* mAppIdleHook_c */
-
