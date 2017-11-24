@@ -1,40 +1,5 @@
-/*!
-* Copyright 2016-2017 NXP
-*
-* \file
-*
-* This is a source file for the main application.
-*
-* Redistribution and use in source and binary forms, with or without modification,
-* are permitted provided that the following conditions are met:
-*
-* o Redistributions of source code must retain the above copyright notice, this list
-*   of conditions and the following disclaimer.
-*
-* o Redistributions in binary form must reproduce the above copyright notice, this
-*   list of conditions and the following disclaimer in the documentation and/or
-*   other materials provided with the distribution.
-*
-* o Neither the name of Freescale Semiconductor, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from this
-*   software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-* ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-* ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
 /************************************************************************************
-*************************************************************************************
 * Include
-*************************************************************************************
 ************************************************************************************/
 /* Drv */
 #include "LED.h"
@@ -63,10 +28,10 @@
 #include "menus.h"
 #include "connectivity_test.h"
 
+#include "ppp-blinky.h"
+
 /************************************************************************************
-*************************************************************************************
 * Private macros
-*************************************************************************************
 ************************************************************************************/
 #define gAppNumberOfTests_d (1)
 #define App_NotifySelf() OSA_EventSet(mAppThreadEvt, gCtEvtSelfEvent_c)
@@ -75,27 +40,20 @@
 #define mAppIdleHook_c 0
 #endif
 
+
 /************************************************************************************
-*************************************************************************************
 * Private definitions
-*************************************************************************************
 ************************************************************************************/
 typedef bool_t ( * pCtTestFunction)(ct_event_t evt, void* pAssocData);
 /************************************************************************************
-*************************************************************************************
 * Private prototypes
-*************************************************************************************
 ************************************************************************************/
 /*Application main*/
 static void App_Thread (uint32_t param); 
 /*Application event handler*/
 static void App_HandleEvents(osaEventFlags_t flags);
-/*Function that reads latest byte from Serial Manager*/
-//static void App_UpdateUartData(uint8_t* pData);
 /*Application Init*/
 static void App_InitApp();
-/*Print shortcut menu values*/
-//static void App_PrintTestParameters(bool_t bEraseLine);
 /*Generic FSK RX callback*/
 static void App_GenFskReceiveCallback(uint8_t *pBuffer, 
                                       uint16_t bufferLength, 
@@ -113,17 +71,13 @@ static void App_NotifyAppThread(void);
 static void App_TimerCallback(void* param);
 
 /************************************************************************************
-*************************************************************************************
 * Private memory declarations
-*************************************************************************************
 ************************************************************************************/
 static uint8_t platformInitialized = 0;
 /*event used by the application thread*/
 static osaEventId_t mAppThreadEvt;
 /*application state*/
 static app_states_t mAppState = gAppStateInit_c;
-/*set TRUE when user presses [ENTER] on logo screen*/
-//static bool_t mAppStartApp = FALSE;
 /*pointer to test currently running*/
 static pCtTestFunction pfCtCurrentTest = NULL;
 /*pointer to data associated to each event*/
@@ -193,8 +147,9 @@ void main_task(uint32_t param)
         
         /*allocate a timer*/
         mAppTmrId = TMR_AllocateTimer();
-        /*Prints the Welcome screens in the terminal*/  
-        PrintMenu(cu8Logo, mAppSerId);
+
+        initializePpp(mAppSerId);
+        waitForPcConnectString();
     }
     
     /* Call application task */
@@ -220,7 +175,10 @@ void App_Thread (uint32_t param)
         	App_HandleEvents(mAppThreadEvtFlags);/*handle app events*/
         }
 
+        waitForPppFrame();
+
         (void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
+
 
         if(gUseRtos_c == 0) /*if bare-metal break while*/
         {
@@ -239,6 +197,9 @@ void App_HandleEvents(osaEventFlags_t flags)
 {
     switch(mAppState)
     {
+    case gCtEvtUart_c:
+//    	pppReceiveHandler();
+    	break;
     case gAppStateIdle_c:
     	break;
     case gAppStateInit_c:
@@ -388,6 +349,7 @@ static void App_GenFskEventNotificationCallback(genfskEvent_t event,
 
 static void App_SerialCallback(void* param)
 {
+	pppReceiveHandler();
     OSA_EventSet(mAppThreadEvt, gCtEvtUart_c);
 }
 

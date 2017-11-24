@@ -1,43 +1,10 @@
 /// ppp-blinky.h
+#ifndef PPPBLINKY_H
+#define PPPBLINKY_H
 
-//#include "mbed.h"
-/* mbed Microcontroller Library
- * Copyright (c) 2006-2013 ARM Limited
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-#ifndef MBED_H
-#define MBED_H
-// mbed Peripheral components
+#include "stdint.h"
 
-
-//#include "drivers/BusOut.h" //need this LED
-//#include "drivers/Serial.h"
-//#include "drivers/RawSerial.h"
-//#include "drivers/UARTSerial.h"
-//#include "drivers/InterruptIn.h"
-#include "platform/mbed_wait_api.h"//need this
-
-//using namespace mbed;
-//using namespace std;
-
-#endif
-#include "stdio.h"
-#include "string.h"
-//#include "core_cmInstr.h"
-#include "sha1.h"
-
-void initializePpp();
+void initializePpp(uint8_t serial);
 int connectedPpp();
 void waitForPcConnectString();
 void waitForPppFrame();
@@ -202,5 +169,6 @@ typedef struct pppType {
     struct {
         unsigned int ident; // our IP ident value (outgoing frame count)
     } ipData; // ip related object
-} pppVariables;
+} pppType;
 
+#endif /* PPP-BLINY_H */

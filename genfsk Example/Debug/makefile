@@ -55,25 +55,25 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: genfsk\ Example.axf
+all: genfskExample.axf
 
 # Tool invocations
-genfsk\ Example.axf: $(OBJS) $(USER_OBJS)
+genfskExample.axf: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Linker'
-	arm-none-eabi-gcc -L"C:\Users\Samuel Mott\Documents\RTSLab2\genfsk Example\libs" -Xlinker -Map="genfsk Example.map" -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m0plus -mthumb -T MKW41Z512xxx4_connectivity.ld -L ../source -o "genfsk Example.axf" $(OBJS) $(USER_OBJS) $(LIBS)
+	arm-none-eabi-gcc -L"C:\Users\Samuel Mott\Documents\RTSLab2\genfsk Example\libs" -Xlinker -Map="genfskExample.map" -Xlinker --gc-sections -Xlinker -print-memory-usage -mcpu=cortex-m0plus -mthumb -T MKW41Z512xxx4_connectivity.ld -L ../source -o "genfskExample.axf" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	$(MAKE) --no-print-directory post-build
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) "genfsk Example.axf"
+	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) genfskExample.axf
 	-@echo ' '
 
 post-build:
 	-@echo 'Performing post-build steps'
-	-arm-none-eabi-size "genfsk Example.axf"; # arm-none-eabi-objcopy -v -O binary "genfsk Example.axf" "genfsk Example.bin" ; # checksum -p MKW41Z512xxx4 -d "genfsk Example.bin";
+	-arm-none-eabi-size "genfskExample.axf"; # arm-none-eabi-objcopy -v -O binary "genfskExample.axf" "genfskExample.bin" ; # checksum -p MKW41Z512xxx4 -d "genfskExample.bin";
 	-@echo ' '
 
 .PHONY: all clean dependents

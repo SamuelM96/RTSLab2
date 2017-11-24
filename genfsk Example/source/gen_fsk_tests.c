@@ -1,36 +1,3 @@
-/*!
-* Copyright 2016-2017 NXP
-*
-* \file
-*
-* This is a source file for the main application.
-*
-* Redistribution and use in source and binary forms, with or without modification,
-* are permitted provided that the following conditions are met:
-*
-* o Redistributions of source code must retain the above copyright notice, this list
-*   of conditions and the following disclaimer.
-*
-* o Redistributions in binary form must reproduce the above copyright notice, this
-*   list of conditions and the following disclaimer in the documentation and/or
-*   other materials provided with the distribution.
-*
-* o Neither the name of Freescale Semiconductor, Inc. nor the names of its
-*   contributors may be used to endorse or promote products derived from this
-*   software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-* ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-* ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
 #include "MemManager.h"
 #include "RNG_Interface.h"
 #include "TimersManager.h"
@@ -42,9 +9,7 @@
 #include "menus.h"
 
 /*! *********************************************************************************
-*************************************************************************************
 * Public memory declarations
-*************************************************************************************
 ********************************************************************************** */
 /*serial interface id*/
 uint8_t mAppSerId;
@@ -56,19 +21,15 @@ uint8_t mAppGenfskId;
 ct_config_params_t gaConfigParams[5];
 
 /*! *********************************************************************************
-*************************************************************************************
 * Private macros
-*************************************************************************************
 ********************************************************************************** */
 #define gPerOpcode1 (0xCA)
 #define gPerOpcode2 (0xFE)
 
-#define gRangeOpcode1 (0xAB)
-#define gRangeOpcode2 (0xCD)
+// #define gRangeOpcode1 (0xAB)
+// #define gRangeOpcode2 (0xCD)
 /************************************************************************************
-*************************************************************************************
 * Private prototypes
-*************************************************************************************
 ************************************************************************************/
 /* PER RX handler */
 static bool_t CT_PacketErrorRateRx(ct_event_t evType, void* pAssociatedValue, bool_t bReInit);
@@ -76,9 +37,7 @@ static bool_t CT_PacketErrorRateRx(ct_event_t evType, void* pAssociatedValue, bo
 static bool_t CT_PacketErrorRateTx(ct_event_t evType, void* pAssociatedValue, bool_t bReInit);
 
 /************************************************************************************
-*************************************************************************************
 * Private memory declarations
-*************************************************************************************
 ************************************************************************************/
 /* buffers for interaction with Generic FSK */
 static uint8_t* gRxBuffer;
@@ -261,7 +220,6 @@ static bool_t CT_PacketErrorRateRx(ct_event_t evType,
     
     int8_t   i8AverageRssi = 0;
     ct_rx_indication_t* pIndicationInfo = NULL;
-    uint8_t u8UartData = 0xFF;
     uint8_t* pRxBuffer = NULL;
     bool_t bRestartRx = FALSE;
     bool_t bReturnFromSM = FALSE;
@@ -302,16 +260,7 @@ static bool_t CT_PacketErrorRateRx(ct_event_t evType,
                     /* print statistics */
                     PrintPerRxInfo(u16PacketsIndex, u16ReceivedPackets, pIndicationInfo, mAppSerId);
                     
-                    if(u16PacketsIndex == u16TotalPackets) /* received last packet */
-                    { 
-                        Serial_Print(mAppSerId, cu8PerRxMessages[3], gAllowToBlock_d);
-                        perRxState = gPerRxStateIdle_c;
-                        pNotifyAppThread(); 
-                    }
-                    else
-                    {
-                        bRestartRx = TRUE;
-                    }
+                    bRestartRx = TRUE;
                 } 
                 else
                 {
@@ -365,14 +314,14 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
 //        pNotifyAppThread();
 
         miliSecDelay *= 1000; /*convert into microseconds*/
-        u16SentPackets = 0;
+        u16SentPackets = 20;
         
         gTxPacket.header.lengthField = (uint16_t)gaConfigParams[3].paramValue.decValue;
 
         gTxPacket.payload[0] = (u16TotalPackets >> 8);
         gTxPacket.payload[1] = (uint8_t)u16TotalPackets;
-        gTxPacket.payload[2] = ((u16SentPackets+1) >> 8);
-        gTxPacket.payload[3] = (uint8_t)(u16SentPackets+1);
+        gTxPacket.payload[2] = ((u16SentPackets) >> 8);
+        gTxPacket.payload[3] = (uint8_t)(u16SentPackets);
         gTxPacket.payload[4] = gPerOpcode1;
         gTxPacket.payload[5] = gPerOpcode2;
         
@@ -390,7 +339,7 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
             Serial_Print(mAppSerId, cu8PerTxMessages[2], gAllowToBlock_d);
             perTxState = gPerTxStateIdle_c;
         }
-        u16SentPackets++;
+//        u16SentPackets++;
         Serial_Print(mAppSerId, cu8PerTxMessages[3], gAllowToBlock_d);
         Serial_PrintDec(mAppSerId, (uint32_t)u16TotalPackets);
         
@@ -407,8 +356,8 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
                 Serial_Print(mAppSerId, cu8PerTxMessages[4], gAllowToBlock_d);
                 perTxState = gPerTxStateIdle_c;
             } else {
-                gTxPacket.payload[2] = ((u16SentPackets+1) >> 8);
-                gTxPacket.payload[3] = (uint8_t)(u16SentPackets+1);
+                gTxPacket.payload[2] = ((u16SentPackets) >> 8);
+                gTxPacket.payload[3] = (uint8_t)(u16SentPackets);
                 /*pack everything into a buffer*/
                 GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
                 /*calculate buffer length*/
@@ -422,7 +371,7 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
                     perTxState = gPerTxStateIdle_c;
                 }
                 
-                u16SentPackets++;
+//                u16SentPackets++;
             }
         }
     } else {

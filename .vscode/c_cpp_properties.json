@@ -1,0 +1,100 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "/usr/include",
+                "/usr/local/include",
+                "${workspaceRoot}"
+            ],
+            "defines": [],
+            "intelliSenseMode": "clang-x64",
+            "browse": {
+                "path": [
+                    "/usr/include",
+                    "/usr/local/include",
+                    "${workspaceRoot}"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            },
+            "macFrameworkPath": [
+                "/System/Library/Frameworks",
+                "/Library/Frameworks"
+            ]
+        },
+        {
+            "name": "Linux",
+            "includePath": [
+                "/usr/include",
+                "/usr/local/include",
+                "${workspaceRoot}"
+            ],
+            "defines": [],
+            "intelliSenseMode": "clang-x64",
+            "browse": {
+                "path": [
+                    "/usr/include",
+                    "/usr/local/include",
+                    "${workspaceRoot}"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            }
+        },
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceRoot}",
+                "${workspaceRoot}/genfsk Example/board",
+                "${workspaceRoot}/genfsk Example/CMSIS",
+                "${workspaceRoot}/genfsk Example/drivers",
+                "${workspaceRoot}/genfsk Example/framework",
+                "${workspaceRoot}/genfsk Example/genfsk",
+                "${workspaceRoot}/genfsk Example/libs",
+                "${workspaceRoot}/genfsk Example/source",
+                "${workspaceRoot}/genfsk Example/startup",
+                "${workspaceRoot}/genfsk Example/utilities",
+                "${workspaceRoot}/genfsk Example/framework/common",
+                "${workspaceRoot}/genfsk Example/framework/DCDC/Interface",
+                "${workspaceRoot}/genfsk Example/framework/Flash/Internal",
+                "${workspaceRoot}/genfsk Example/framework/FunctionLib",
+                "${workspaceRoot}/genfsk Example/framework/GPIO",
+                "${workspaceRoot}/genfsk Example/framework/Keyboard/Interface",
+                "${workspaceRoot}/genfsk Example/framework/LED/Interface",
+                "${workspaceRoot}/genfsk Example/framework/Lists",
+                "${workspaceRoot}/genfsk Example/framework/LowPower/Interface",
+                "${workspaceRoot}/genfsk Example/framework/MemManager/Interface",
+                "${workspaceRoot}/genfsk Example/framework/Messaging/Interface",
+                "${workspaceRoot}/genfsk Example/framework/ModuleInfo",
+                "${workspaceRoot}/genfsk Example/framework/MWSCoexistence/Interface",
+                "${workspaceRoot}/genfsk Example/framework/OSAbstraction/Interface",
+                "${workspaceRoot}/genfsk Example/framework/Panic/Interface",
+                "${workspaceRoot}/genfsk Example/framework/Reset",
+                "${workspaceRoot}/genfsk Example/framework/RNG/Interface",
+                "${workspaceRoot}/genfsk Example/framework/SecLib",
+                "${workspaceRoot}/genfsk Example/framework/SerialManager/Interface",
+                "${workspaceRoot}/genfsk Example/framework/TimersManager/Interface",
+                "${workspaceRoot}/genfsk Example/framework/XCVR/",
+                "${workspaceRoot}/genfsk Example/framework/XCVR/MKW41Z4/cfgs_kw4x_3x_2x",
+                "${workspaceRoot}/genfsk Example/framework/XCVR/MKW41Z4/XCVR_Test",
+                "${workspaceRoot}/genfsk Example/framework/XCVR/MKW41Z4",
+                "C:\\Program Files (x86)\\GNU Tools ARM Embedded\\6 2017-q2-update\\arm-none-eabi\\include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE"
+            ],
+            "intelliSenseMode": "msvc-x64",
+            "browse": {
+                "path": [
+                    "${workspaceRoot}",
+                    "${workspaceRoot}/genfsk Example/framework/Keyboard/Interface"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            }
+        }
+    ],
+    "version": 3
+}

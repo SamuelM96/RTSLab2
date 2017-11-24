@@ -6,17 +6,23 @@
 C_SRCS += \
 ../source/connectivity_test.c \
 ../source/gen_fsk_tests.c \
-../source/menus.c 
+../source/menus.c \
+../source/ppp-blinky.c \
+../source/sha1.c 
 
 OBJS += \
 ./source/connectivity_test.o \
 ./source/gen_fsk_tests.o \
-./source/menus.o 
+./source/menus.o \
+./source/ppp-blinky.o \
+./source/sha1.o 
 
 C_DEPS += \
 ./source/connectivity_test.d \
 ./source/gen_fsk_tests.d \
-./source/menus.d 
+./source/menus.d \
+./source/ppp-blinky.d \
+./source/sha1.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

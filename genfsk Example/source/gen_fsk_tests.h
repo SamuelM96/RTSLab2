@@ -125,11 +125,7 @@ typedef void (* pTmrHookNotification) (void*);
 #define gGenFskMaxPayloadLen_c ((1 << gGenFskDefaultLengthFieldSize_c) - 1)
 
 /*test opcode + 2byte packet index + 2byte number of packets for PER test*/
-#if ((cPWR_UsePowerDownMode) && (cPWR_GENFSK_LL_Enable))
-#define gGenFskMinPayloadLen_c (10) 
-#else
 #define gGenFskMinPayloadLen_c (6) 
-#endif /* ((cPWR_UsePowerDownMode) && (cPWR_GENFSK_LL_Enable)) */
 #define gGenFskDefaultPayloadLen_c (gGenFskMinPayloadLen_c)
 
 #define gGenFskDefaultMaxBufferSize_c (gGenFskDefaultSyncAddrSize_c + 1 + \
@@ -158,9 +154,4 @@ extern uint8_t mAppTmrId;
 extern void CT_GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc);
 
 extern bool_t CT_PacketErrorRate(ct_event_t evType, void* pAssociatedValue);
-extern bool_t CT_RangeTest(ct_event_t evType, void* pAssociatedValue);
-extern bool_t CT_ContinuousTests(ct_event_t evType, void* pAssociatedValue);
-
-extern bool_t CT_UpdateShortcutKeyParam(uint8_t u8PressedKey);
-extern bool_t CT_IsShortcutMenuEnabled(void);
 #endif

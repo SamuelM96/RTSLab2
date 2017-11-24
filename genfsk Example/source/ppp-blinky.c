@@ -39,6 +39,12 @@
 // Ok, enough talking, time to check out some code!!
 
 #include "ppp-blinky.h"
+#include "SerialManager.h"
+#include <stdio.h>
+#include <string.h>
+#include "sha1.h"
+#include "MKW41Z4.h"
+#include "LED.h"
 
 // The #define below enables/disables a second (OPTIONAL) serial port that prints out interesting diagnostic messages.
 // Change to SERIAL_PORT_MONITOR_YES to enable diagnostics messages. You need to wire a second serial port to your mbed hardware to monitor the debug output.
@@ -63,7 +69,7 @@ RawSerial xx(PTC3, PTC2); // Second serial port on FRDM-KW41Z board
 // change the next line to YOUR target board's second serial port pin definition if it's not present - and if it works, please send it to me - thanks!!!
 RawSerial xx(p9, p10); // change this to YOUR board second serial port pin definition - and please send it to me if it works!!!
 #else
-#error Add your target board's second serial port here if you want to use debugging - or simply change SERIAL_PORT_MONITOR_YES to SERIAL_PORT_MONITOR_NO
+#error Add your target boards second serial port here if you want to use debugging - or simply change SERIAL_PORT_MONITOR_YES to SERIAL_PORT_MONITOR_NO
 #endif
 #define debugPrintf(x...) xx.printf (x) /* if we have a serial port we can print debug messages */
 #define debugPutc(x...) xx.putc(x)
@@ -151,6 +157,7 @@ window.onload=function(){\
 // See instructions at the top.
 // On a typical mbed hardware platform this serial port is a USB virtual com port (VCP) and the USB serial driver is supplied by the board vendor.
 ////RawSerial pc (USBTX, USBRX); // usb virtual com port for mbed hardware
+uint8_t pc;
 
 ////DigitalOut led1(LED1); // this led toggles when a packet is received
 
@@ -182,7 +189,13 @@ void pppInitStruct()
 void led1Toggle()
 {
     ////led1 = (ppp.ledState >> 1) & 1; // use second bit, in other words toggle LED only every second packet
-    ppp.ledState++;
+//	if (!ppp.ledState) {
+//		Led2On();
+//	} else {
+//		Led2Off();
+//	}
+//
+//	ppp.ledState = ppp.ledState == 1 ? 0 : 1;
 }
 
 /// Returns 1 after a connect message, 0 at startup or after a disconnect message
@@ -201,13 +214,21 @@ void checkPc() {};
 void pppReceiveHandler()
 {
     char ch;
-    while ( pc.readable() ) {
+    uint16_t count;
+
+    while (1) {
+    	Serial_Read(pc, (uint8_t*)&ch, 1, &count);
+
+    	if (count < 1) {
+    		break;
+    	}
+
         int hd = (ppp.rx.head+1)&(RXBUFLEN-1); // increment/wrap head index
         if ( hd == ppp.rx.rtail ) {
             debugPrintf("\nReceive buffer full\n");
             return;
         }
-        ch = pc.getc(); // read new character
+//        ch = pc.getc(); // read new character
         ppp.rx.buf[ppp.rx.head] = ch; // insert in our receive buffer
         if ( ppp.online == 0 ) {
             if (ch == 0x7E) {
@@ -344,10 +365,11 @@ void processPPPFrame(int start, int end)
 }
 
 /// output a character to the PPP port while checking for incoming characters
-void pcPutcWhileCheckingInput(int ch)
+void pcPutcWhileCheckingInput(uint8_t ch)
 {
     checkPc(); // check input
-    pc.putc(ch);
+//    pc.putc(ch);
+    Serial_SyncWrite(pc, &ch, 1);
     checkPc();
 }
 
@@ -1219,7 +1241,7 @@ void determinePacketType()
 /// a sniffer tool to assist in figuring out where in the code we are having characters in the input buffer
 void sniff()
 {
-    if ( pc.readable() ) putsWhileCheckingInput( "Sniff - Char available!\n" ); // if this prints anything it means there is a character in the serial receive buffer
+//    if ( pc.readable() ) putsWhileCheckingInput( "Sniff - Char available!\n" ); // if this prints anything it means there is a character in the serial receive buffer
 }
 
 /// scan the PPP serial input stream for frame start markers
@@ -1258,7 +1280,8 @@ void waitForPcConnectString()
         if (found1 != NULL) {
             // respond with Windows Dialup networking expected "Direct Connection Between Two Computers" response string
             if (v0) debugPrintf("Connected: Found connect string \"CLIENT\", sent \"CLIENTSERVER\"\n");
-            pc.puts("CLIENTSERVER");
+//            pc.puts("CLIENTSERVER");
+            Serial_Print(pc, "CLIENTSERVER", gNoBlock_d);
             ppp.online=1; // we are connected - set flag so we stop looking for the connect string
             checkPc();
         }
@@ -1266,14 +1289,17 @@ void waitForPcConnectString()
 }
 
 /// Initialize PPP data structure and set serial port(s) baud rate(s)
-void initializePpp()
+void initializePpp(uint8_t serial)
 {
+	pc = serial;
     debugBaudRate(115200); // baud rate for (optional) debug serial port
     debugPrintf("\x1b[2J\x1b[H\x1b[30m");
    // wait_ms(200); // a brief wait so a human can see the reset event
     debugPrintf("mbed PPP-Blinky HTTP & WebSocket server ready :)\n"); // VT100 codes for clear_screen, home, black_text - Tera Term is a handy VT100 terminal
-    
+
     pppInitStruct(); // initialize all the variables/properties/buffers
-    pc.baud(115200); // pc serial port acting as a dial-up modem - for PPP traffic
-    pc.attach(&pppReceiveHandler, RawSerial::RxIrq); // set up serial port receive interrupt handler
+    Serial_Print(pc, "Testing", gAllowToBlock_d);
+//    Serial_SetRxCallBack (pc, pppReceiveHandler, NULL);
+//    pc.baud(115200); // pc serial ort acting as a dial-up modem - for PPP traffic
+//    pc.attach(&pppReceiveHandler, RawSerial::RxIrq); // set up serial port receive interrupt handler
 }
