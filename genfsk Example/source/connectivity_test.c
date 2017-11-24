@@ -148,6 +148,12 @@ void main_task(uint32_t param)
         /*allocate a timer*/
         mAppTmrId = TMR_AllocateTimer();
 
+        /*register callbacks for the generic fsk LL */
+        GENFSK_RegisterCallbacks(mAppGenfskId, App_GenFskReceiveCallback, App_GenFskEventNotificationCallback);
+
+        /*init and provide means to notify the app thread from connectivity tests*/
+        CT_GenFskInit(App_NotifyAppThread, App_TimerCallback);
+
         initializePpp(mAppSerId);
         waitForPcConnectString();
     }
@@ -175,9 +181,9 @@ void App_Thread (uint32_t param)
         	App_HandleEvents(mAppThreadEvtFlags);/*handle app events*/
         }
 
-        waitForPppFrame();
+//        waitForPppFrame();
 
-        (void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
+//        (void)OSA_EventWait(mAppThreadEvt, gCtEvtEventsAll_c, FALSE, osaWaitForever_c ,&mAppThreadEvtFlags);
 
 
         if(gUseRtos_c == 0) /*if bare-metal break while*/
@@ -195,82 +201,79 @@ void App_Thread (uint32_t param)
 ********************************************************************************** */
 void App_HandleEvents(osaEventFlags_t flags)
 {
-    switch(mAppState)
-    {
-    case gCtEvtUart_c:
-//    	pppReceiveHandler();
-    	break;
-    case gAppStateIdle_c:
-    	break;
-    case gAppStateInit_c:
-        /*initialize app and map tests*/
-        App_InitApp();
-        /*enter app default state*/
-        mAppState = gAppStateSelectTest_c;
-        /*notify app task to move to new state*/
-        App_NotifySelf();
-        break;
-    case gAppStateSelectTest_c:
-    	pfCtCurrentTest = ppfCtAvailableTests[0];
-    	mAppState = gAppStateRunning_c;
-    	App_NotifySelf();
-        break;
-    case gAppStateRunning_c: /*event handling for test currently running*/
-        if(flags & gCtEvtRxDone_c)
-        {
-            pEvtAssociatedData = &mAppRxLatestPacket;
-            if(pfCtCurrentTest(gCtEvtRxDone_c, pEvtAssociatedData))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
-        if(flags & gCtEvtTxDone_c)
-        {
-            pEvtAssociatedData = &mAppGenfskStatus;
-            if(pfCtCurrentTest(gCtEvtTxDone_c, pEvtAssociatedData))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
-        if(flags & gCtEvtRxFailed_c)
-        {
-            if(pfCtCurrentTest(gCtEvtRxFailed_c, pEvtAssociatedData))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
-        if(flags & gCtEvtSeqTimeout_c)
-        {
-            if(pfCtCurrentTest(gCtEvtSeqTimeout_c, NULL))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            } 
-        }
-        if(flags & gCtEvtTimerExpired_c)
-        {
-            pEvtAssociatedData = NULL;
-            if(pfCtCurrentTest(gCtEvtTimerExpired_c, pEvtAssociatedData))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
-        if(flags & gCtEvtSelfEvent_c)
-        {
-            if(pfCtCurrentTest(gCtEvtSelfEvent_c, NULL))
-            {
-                mAppState = gAppStateIdle_c;
-                App_NotifySelf();
-            }
-        }
-        break;
-    default:
-        break;
-    }
+//    switch(mAppState)
+//    {
+//    case gAppStateIdle_c:
+//    	break;
+//    case gAppStateInit_c:
+//        /*initialize app and map tests*/
+////        App_InitApp();
+//        /*enter app default state*/
+//        mAppState = gAppStateSelectTest_c;
+//        /*notify app task to move to new state*/
+//        App_NotifySelf();
+//        break;
+//    case gAppStateSelectTest_c:
+////    	pfCtCurrentTest = ppfCtAvailableTests[0];
+////    	mAppState = gAppStateRunning_c;
+////    	App_NotifySelf();
+//        break;
+//    case gAppStateRunning_c: /*event handling for test currently running*/
+//        if(flags & gCtEvtRxDone_c)
+//        {
+//            pEvtAssociatedData = &mAppRxLatestPacket;
+//            if(pfCtCurrentTest(gCtEvtRxDone_c, pEvtAssociatedData))
+//            {
+//                mAppState = gAppStateIdle_c;
+//                App_NotifySelf();
+//            }
+//        }
+//        if(flags & gCtEvtTxDone_c)
+//        {
+//            pEvtAssociatedData = &mAppGenfskStatus;
+//            if(pfCtCurrentTest(gCtEvtTxDone_c, pEvtAssociatedData))
+//            {
+//                mAppState = gAppStateIdle_c;
+//                App_NotifySelf();
+//            }
+//        }
+//        if(flags & gCtEvtRxFailed_c)
+//        {
+//            if(pfCtCurrentTest(gCtEvtRxFailed_c, pEvtAssociatedData))
+//            {
+//                mAppState = gAppStateIdle_c;
+//                App_NotifySelf();
+//            }
+//        }
+//        if(flags & gCtEvtSeqTimeout_c)
+//        {
+//            if(pfCtCurrentTest(gCtEvtSeqTimeout_c, NULL))
+//            {
+//                mAppState = gAppStateIdle_c;
+//                App_NotifySelf();
+//            }
+//        }
+//        if(flags & gCtEvtTimerExpired_c)
+//        {
+//            pEvtAssociatedData = NULL;
+//            if(pfCtCurrentTest(gCtEvtTimerExpired_c, pEvtAssociatedData))
+//            {
+//                mAppState = gAppStateIdle_c;
+//                App_NotifySelf();
+//            }
+//        }
+//        if(flags & gCtEvtSelfEvent_c)
+//        {
+//            if(pfCtCurrentTest(gCtEvtSelfEvent_c, NULL))
+//            {
+//                mAppState = gAppStateIdle_c;
+//                App_NotifySelf();
+//            }
+//        }
+//        break;
+//    default:
+//        break;
+//    }
 }
 
 /*! *********************************************************************************
@@ -280,15 +283,15 @@ void App_HandleEvents(osaEventFlags_t flags)
 ********************************************************************************** */
 static void App_InitApp()
 {   
-   ppfCtAvailableTests[0] = CT_PacketErrorRate;
+//   ppfCtAvailableTests[0] = CT_PacketErrorRate;
 
-   /*register callbacks for the generic fsk LL */
-   GENFSK_RegisterCallbacks(mAppGenfskId,
-                            App_GenFskReceiveCallback, 
-                            App_GenFskEventNotificationCallback);
-   
-   /*init and provide means to notify the app thread from connectivity tests*/
-   CT_GenFskInit(App_NotifyAppThread, App_TimerCallback);
+//   /*register callbacks for the generic fsk LL */
+//   GENFSK_RegisterCallbacks(mAppGenfskId,
+//                            App_GenFskReceiveCallback,
+//                            App_GenFskEventNotificationCallback);
+//
+//   /*init and provide means to notify the app thread from connectivity tests*/
+//   CT_GenFskInit(App_NotifyAppThread, App_TimerCallback);
 }
 
 /*! *********************************************************************************

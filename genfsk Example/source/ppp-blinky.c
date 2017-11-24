@@ -45,6 +45,7 @@
 #include "sha1.h"
 #include "MKW41Z4.h"
 #include "LED.h"
+#include "gen_fsk_tests.h"
 
 // The #define below enables/disables a second (OPTIONAL) serial port that prints out interesting diagnostic messages.
 // Change to SERIAL_PORT_MONITOR_YES to enable diagnostics messages. You need to wire a second serial port to your mbed hardware to monitor the debug output.
@@ -127,19 +128,7 @@ window.onload=function(){\
  var ctr=0;\
  function show(text){sts.textContent=text;}\
  btn.onclick=function(){\
-  if(btn.textContent==\"Connect\"){\
-   x=new WebSocket(url);\
-    x.onopen=function(){\
-    show(\"Connected to : \"+url);\
-    btn.textContent=\"Send \\\"\"+ctr+\"\\\"\";\
-   };\
-  x.onclose=function(){show(\"closed\");};\
-  x.onmessage=function(msg){show(\"PPP-Blinky Sent: \\\"\"+msg.data+\"\\\"\");};\
-  } else {\
-   x.send(ctr);\
-   ctr=ctr+1;\
-   btn.textContent=\"Send \\\"\"+ctr+\"\\\"\";\
-  }\
+ window.location.href = \"/ws/t\"\
  };\
 };\
 </script>\
@@ -194,7 +183,7 @@ void led1Toggle()
 //	} else {
 //		Led2Off();
 //	}
-//
+//	Led2Toggle();
 //	ppp.ledState = ppp.ledState == 1 ? 0 : 1;
 }
 
@@ -207,38 +196,6 @@ int connectedPpp()
 /// Previously used to check for characters in receive buffer.
 /// Now just a stub.
 void checkPc() {};
-
-/// PPP serial port receive interrupt handler.
-/// Check for available characters from the PC and read them into our own circular serial receive buffer at ppp.rx.buf.
-/// Also, if we are offline and a 0x7e frame start character is seen, we go online immediately
-void pppReceiveHandler()
-{
-    char ch;
-    uint16_t count;
-
-    while (1) {
-    	Serial_Read(pc, (uint8_t*)&ch, 1, &count);
-
-    	if (count < 1) {
-    		break;
-    	}
-
-        int hd = (ppp.rx.head+1)&(RXBUFLEN-1); // increment/wrap head index
-        if ( hd == ppp.rx.rtail ) {
-            debugPrintf("\nReceive buffer full\n");
-            return;
-        }
-//        ch = pc.getc(); // read new character
-        ppp.rx.buf[ppp.rx.head] = ch; // insert in our receive buffer
-        if ( ppp.online == 0 ) {
-            if (ch == 0x7E) {
-                ppp.online = 1;
-            }
-        }
-        ppp.rx.head = hd; // update head pointer
-        ppp.rx.buflevel++;
-    }
-}
 
 /// print to debug port while checking for incoming characters
 void putcWhileCheckingInput( char outByte )
@@ -321,7 +278,7 @@ void processPPPFrame(int start, int end)
     if(start==end) {
         return; // empty frame
     }
-    led1Toggle(); // change led1 state on every frame we receive
+//    led1Toggle(); // change led1 state on every frame we receive
     fcsReset();
     char * dest = ppp.pkt.buf;
     ppp.pkt.len=0;
@@ -902,13 +859,14 @@ int httpResponse(char * dataStart, int * flags)
 
     int nHeader; // byte size of HTTP header
     int contentLengthStart; // index where HTML starts
-    int httpGet5,httpGet6,httpGetx, httpGetRoot; // temporary storage of strncmp results
+    int httpGet5,httpGet6, httpGet8,httpGetx, httpGetRoot; // temporary storage of strncmp results
     *flags = TCP_FLAG_ACK | TCP_FLAG_FIN; // the default case is that we close the connection
 
     httpGetRoot = strncmp(dataStart, "GET / HTTP/1.", 13);  // found a GET to the root directory
     httpGetx    = strncmp(dataStart, "GET /x", 6);          // found a GET to /x which we will treat special (anything starting with /x, e.g. /x, /xyz, /xABC?pqr=123
     httpGet5    = dataStart[5]; // the first character in the path name, we use it for special functions later on
     httpGet6    = dataStart[6]; // the second character in the path name, we use it for special functions later on
+    httpGet8 	= dataStart[8]; // Checking for t
     // for example, you could try this using netcat (nc):    echo "GET /x" | nc 172.10.10.2
     if( (httpGetRoot==0) || (httpGetx==0) ) {
         n=n+sprintf(n+dataStart,"HTTP/1.1 200 OK\r\nServer: mbed-PPP-Blinky-v1\r\n"); // 200 OK header
@@ -928,6 +886,13 @@ int httpResponse(char * dataStart, int * flags)
         n = n + sizeof(rootWebPage)-1; // one less than sizeof because we don't count the null byte at the end
 
     } else if ( (httpGet5 == 'w') && (httpGet6 == 's') ) { // "ws" is a special page for websocket demo
+    	if (httpGet8 == 't') {
+    		static uint16_t ledState = 0;
+
+//    		ledState = ledState ? 0 : 1;
+//    		CT_PacketErrorRate(gCtEvtTxDone_c, gCtEvtSelfEvent_c,ledState);
+    		Led3Toggle();
+    	}
         memcpy(n+dataStart,webSocketPage,sizeof(webSocketPage));
         n = n + sizeof(webSocketPage)-1; // one less than size
         *flags = TCP_FLAG_ACK | TCP_FLAG_PSH; // for a websocket page we do NOT close the connection
@@ -1062,7 +1027,8 @@ void tcpHandler()
                 flagsOut = TCP_FLAG_ACK | TCP_FLAG_PSH; // we have data, set the PSH flag
                 dataLen = httpResponse(tcpDataOut, &flagsOut); // send an http response
             } else {
-                dataLen = tcpResponse(tcpDataOut,tcpDataSize, &flagsOut); // not an http GET, handle as a tcp connection
+//                dataLen = tcpResponse(tcpDataOut,tcpDataSize, &flagsOut); // not an http GET, handle as a tcp connection
+            	dataLen = 0;
                 if (dataLen > 0) flagsOut = TCP_FLAG_ACK | TCP_FLAG_PSH; // if we have any data set the PSH flag
             }
             break;
@@ -1247,26 +1213,86 @@ void sniff()
 /// scan the PPP serial input stream for frame start markers
 void waitForPppFrame()
 {
-    while(1) {
-        sendUdpData(); // handle received characters from the DEBUG TERMINAL
-        if ( ppp.rx.head != ppp.rx.tail ) {
-            int oldTail = ppp.rx.tail; // remember where the character is located in the buffer
-            int rx = pc_getBuf(); // get the character
-            if (rx==FRAME_7E) {
-                if (ppp.firstFrame) { // is this the start of the first frame start
-                    ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
-                    ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where first frame started
-                    ppp.firstFrame=0; // clear first frame flag
-                }  else {
-                    ppp.hdlc.frameEndIndex=oldTail; // mark the frame end character
-                    processPPPFrame(ppp.hdlc.frameStartIndex, ppp.hdlc.frameEndIndex); // process the frame
-                    ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
-                    ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where next frame started
-                    break;
-                }
+//    while(1) {
+//	bool_t hasData = false;
+//	do {
+////        sendUdpData(); // handle received characters from the DEBUG TERMINAL
+//        if ( ppp.rx.head != ppp.rx.tail ) {
+//        	hasData = true;
+//            int oldTail = ppp.rx.tail; // remember where the character is located in the buffer
+//            int rx = pc_getBuf(); // get the character
+//            if (rx==FRAME_7E) {
+//                if (ppp.firstFrame) { // is this the start of the first frame start
+//                    ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
+//                    ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where first frame started
+//                    ppp.firstFrame=0; // clear first frame flag
+//                }  else {
+//                    ppp.hdlc.frameEndIndex=oldTail; // mark the frame end character
+//                    processPPPFrame(ppp.hdlc.frameStartIndex, ppp.hdlc.frameEndIndex); // process the frame
+//                    ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
+//                    ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where next frame started
+////                    break;
+//                    hasData = false;
+//                }
+//            }
+//        }
+//    } while(hasData);
+}
+
+/// PPP serial port receive interrupt handler.
+/// Check for available characters from the PC and read them into our own circular serial receive buffer at ppp.rx.buf.
+/// Also, if we are offline and a 0x7e frame start character is seen, we go online immediately
+void pppReceiveHandler()
+{
+    char ch;
+    uint16_t count;
+
+    while (1) {
+    	Serial_Read(pc, (uint8_t*)&ch, 1, &count);
+
+    	if (count < 1) {
+    		break;
+    	}
+
+        int hd = (ppp.rx.head+1)&(RXBUFLEN-1); // increment/wrap head index
+        if ( hd == ppp.rx.rtail ) {
+            debugPrintf("\nReceive buffer full\n");
+            return;
+        }
+//        ch = pc.getc(); // read new character
+        ppp.rx.buf[ppp.rx.head] = ch; // insert in our receive buffer
+        if ( ppp.online == 0 ) {
+            if (ch == 0x7E) {
+                ppp.online = 1;
             }
         }
+        ppp.rx.head = hd; // update head pointer
+        ppp.rx.buflevel++;
     }
+
+    bool_t hasData;
+    do {
+    	hasData = false;
+    	if ( ppp.rx.head != ppp.rx.tail ) {
+            	hasData = true;
+                int oldTail = ppp.rx.tail; // remember where the character is located in the buffer
+                int rx = pc_getBuf(); // get the character
+                if (rx==FRAME_7E) {
+                    if (ppp.firstFrame) { // is this the start of the first frame start
+                        ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
+                        ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where first frame started
+                        ppp.firstFrame=0; // clear first frame flag
+                    }  else {
+                        ppp.hdlc.frameEndIndex=oldTail; // mark the frame end character
+                        processPPPFrame(ppp.hdlc.frameStartIndex, ppp.hdlc.frameEndIndex); // process the frame
+                        ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
+                        ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where next frame started
+    //                    break;
+                        hasData = false;
+                    }
+                }
+            }
+    } while (hasData);
 }
 
 /// Wait for a dial-up modem connect command ("CLIENT") from the host PC, if found, we set ppp.online to true, which will start the IP packet scanner.
@@ -1280,7 +1306,6 @@ void waitForPcConnectString()
         if (found1 != NULL) {
             // respond with Windows Dialup networking expected "Direct Connection Between Two Computers" response string
             if (v0) debugPrintf("Connected: Found connect string \"CLIENT\", sent \"CLIENTSERVER\"\n");
-//            pc.puts("CLIENTSERVER");
             Serial_Print(pc, "CLIENTSERVER", gNoBlock_d);
             ppp.online=1; // we are connected - set flag so we stop looking for the connect string
             checkPc();
@@ -1292,14 +1317,6 @@ void waitForPcConnectString()
 void initializePpp(uint8_t serial)
 {
 	pc = serial;
-    debugBaudRate(115200); // baud rate for (optional) debug serial port
-    debugPrintf("\x1b[2J\x1b[H\x1b[30m");
-   // wait_ms(200); // a brief wait so a human can see the reset event
-    debugPrintf("mbed PPP-Blinky HTTP & WebSocket server ready :)\n"); // VT100 codes for clear_screen, home, black_text - Tera Term is a handy VT100 terminal
-
     pppInitStruct(); // initialize all the variables/properties/buffers
-    Serial_Print(pc, "Testing", gAllowToBlock_d);
-//    Serial_SetRxCallBack (pc, pppReceiveHandler, NULL);
-//    pc.baud(115200); // pc serial ort acting as a dial-up modem - for PPP traffic
-//    pc.attach(&pppReceiveHandler, RawSerial::RxIrq); // set up serial port receive interrupt handler
+    Serial_Print(pc, "Initialized PPP", gAllowToBlock_d);
 }

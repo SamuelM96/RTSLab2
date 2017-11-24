@@ -34,7 +34,7 @@ ct_config_params_t gaConfigParams[5];
 /* PER RX handler */
 static bool_t CT_PacketErrorRateRx(ct_event_t evType, void* pAssociatedValue, bool_t bReInit);
 /* PER TX handler */
-static bool_t CT_PacketErrorRateTx(ct_event_t evType, void* pAssociatedValue, bool_t bReInit);
+static bool_t CT_PacketErrorRateTx(ct_event_t evType, void* pAssociatedValue, bool_t bReInit, uint16_t lState);
 
 /************************************************************************************
 * Private memory declarations
@@ -191,15 +191,17 @@ void CT_GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc)
 /****************************************************************************
 *****************************Packet error rate*******************************
 ****************************************************************************/
-bool_t CT_PacketErrorRate(ct_event_t evType, void* pAssociatedValue)
+bool_t CT_PacketErrorRate(ct_event_t evType, void* pAssociatedValue, uint16_t lState)
 {
     bool_t bReturnFromSM = FALSE;
     static uint8_t currentTest = 0;
+    static uint16_t ledState = 0;
+    ledState = lState;
     
     // bReturnFromSM = CT_PacketErrorRateRx(evType, pAssociatedValue, (currentTest != 'R'));
     // currentTest = bReturnFromSM? 0 : 'R';
 
-    bReturnFromSM = CT_PacketErrorRateTx(evType, pAssociatedValue, currentTest != 'T');
+    bReturnFromSM = CT_PacketErrorRateTx(evType, pAssociatedValue, currentTest != 'T', ledState);
     currentTest = bReturnFromSM? 0 : 'T';
 
     return bReturnFromSM;
@@ -296,13 +298,14 @@ static bool_t CT_PacketErrorRateRx(ct_event_t evType,
 ********************************************************************************** */
 static bool_t CT_PacketErrorRateTx(ct_event_t evType, 
                                    void* pAssociatedValue, 
-                                   bool_t bReInit)
+                                   bool_t bReInit,
+								   uint16_t ledState)
 {
     static ct_per_tx_states_t perTxState = gPerTxStateInit_c;
     static uint32_t miliSecDelay;
 
     static uint16_t u16TotalPackets = 500;
-    static uint16_t u16SentPackets;
+//    static uint16_t u16SentPackets;
     
     uint16_t buffLen = 0;
     bool_t bReturnFromSM = FALSE;
@@ -314,14 +317,14 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
 //        pNotifyAppThread();
 
         miliSecDelay *= 1000; /*convert into microseconds*/
-        u16SentPackets = 20;
+//        u16SentPackets = 20;
         
         gTxPacket.header.lengthField = (uint16_t)gaConfigParams[3].paramValue.decValue;
 
         gTxPacket.payload[0] = (u16TotalPackets >> 8);
         gTxPacket.payload[1] = (uint8_t)u16TotalPackets;
-        gTxPacket.payload[2] = ((u16SentPackets) >> 8);
-        gTxPacket.payload[3] = (uint8_t)(u16SentPackets);
+        gTxPacket.payload[2] = ((ledState) >> 8);
+        gTxPacket.payload[3] = (uint8_t)(ledState);
         gTxPacket.payload[4] = gPerOpcode1;
         gTxPacket.payload[5] = gPerOpcode2;
         
@@ -348,16 +351,16 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
 
     if (perTxState == gPerTxStateRunningTest_c) {
         if(gCtEvtTxDone_c == evType) {
-            PrintPerTxPackets(u16SentPackets, 
+            PrintPerTxPackets(ledState,
                               (gGenfskSuccess == *((genfskEventStatus_t*)pAssociatedValue)),
                               mAppSerId);
             
-            if(u16SentPackets == u16TotalPackets) {
-                Serial_Print(mAppSerId, cu8PerTxMessages[4], gAllowToBlock_d);
-                perTxState = gPerTxStateIdle_c;
-            } else {
-                gTxPacket.payload[2] = ((u16SentPackets) >> 8);
-                gTxPacket.payload[3] = (uint8_t)(u16SentPackets);
+//            if(u16SentPackets == u16TotalPackets) {
+//                Serial_Print(mAppSerId, cu8PerTxMessages[4], gAllowToBlock_d);
+//                perTxState = gPerTxStateIdle_c;
+//            } else {
+                gTxPacket.payload[2] = ((ledState) >> 8);
+                gTxPacket.payload[3] = (uint8_t)(ledState);
                 /*pack everything into a buffer*/
                 GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
                 /*calculate buffer length*/
@@ -372,7 +375,7 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
                 }
                 
 //                u16SentPackets++;
-            }
+//            }
         }
     } else {
             pNotifyAppThread();

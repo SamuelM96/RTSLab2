@@ -153,5 +153,5 @@ extern uint8_t mAppTmrId;
 ********************************************************************************** */
 extern void CT_GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc);
 
-extern bool_t CT_PacketErrorRate(ct_event_t evType, void* pAssociatedValue);
+extern bool_t CT_PacketErrorRate(ct_event_t evType, void* pAssociatedValue, uint16_t lState);
 #endif
