@@ -889,8 +889,8 @@ int httpResponse(char * dataStart, int * flags)
     	if (httpGet8 == 't') {
     		static uint16_t ledState = 0;
 
-//    		ledState = ledState ? 0 : 1;
-//    		CT_PacketErrorRate(gCtEvtTxDone_c, gCtEvtSelfEvent_c,ledState);
+    		ledState = ledState ? 0 : 1;
+    		CT_PacketErrorRate(gCtEvtTxDone_c, gCtEvtSelfEvent_c,ledState);
     		Led3Toggle();
     	}
         memcpy(n+dataStart,webSocketPage,sizeof(webSocketPage));
@@ -1287,7 +1287,6 @@ void pppReceiveHandler()
                         processPPPFrame(ppp.hdlc.frameStartIndex, ppp.hdlc.frameEndIndex); // process the frame
                         ppp.rx.rtail = ppp.rx.tail; // update real-time tail with the virtual tail
                         ppp.hdlc.frameStartIndex = ppp.rx.tail; // remember where next frame started
-    //                    break;
                         hasData = false;
                     }
                 }
