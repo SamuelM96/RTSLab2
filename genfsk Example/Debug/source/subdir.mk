@@ -4,24 +4,21 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../source/connectivity_test.c \
-../source/gen_fsk_tests.c \
-../source/menus.c \
-../source/ppp-blinky.c \
+../source/genfsk.c \
+../source/led_radio.c \
+../source/ppp-webserver.c \
 ../source/sha1.c 
 
 OBJS += \
-./source/connectivity_test.o \
-./source/gen_fsk_tests.o \
-./source/menus.o \
-./source/ppp-blinky.o \
+./source/genfsk.o \
+./source/led_radio.o \
+./source/ppp-webserver.o \
 ./source/sha1.o 
 
 C_DEPS += \
-./source/connectivity_test.d \
-./source/gen_fsk_tests.d \
-./source/menus.d \
-./source/ppp-blinky.d \
+./source/genfsk.d \
+./source/led_radio.d \
+./source/ppp-webserver.d \
 ./source/sha1.d 
 
 

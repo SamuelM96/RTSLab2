@@ -33,6 +33,8 @@
 #ifndef __GEN_FSK_TESTS_H__
 #define __GEN_FSK_TESTS_H__
 
+#include "stdint.h"
+
 /*! *********************************************************************************
 *************************************************************************************
 * Public type definitions
@@ -124,7 +126,7 @@ typedef void (* pTmrHookNotification) (void*);
 /*payload length*/
 #define gGenFskMaxPayloadLen_c ((1 << gGenFskDefaultLengthFieldSize_c) - 1)
 
-/*test opcode + 2byte packet index + 2byte number of packets for PER test*/
+/*test opcode + 2byte packet index + 2byte number of packets for Radio*/
 #define gGenFskMinPayloadLen_c (6) 
 #define gGenFskDefaultPayloadLen_c (gGenFskMinPayloadLen_c)
 
@@ -151,7 +153,10 @@ extern uint8_t mAppTmrId;
 * Public prototypes
 *************************************************************************************
 ********************************************************************************** */
-extern void CT_GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc);
+extern void GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc);
 
-extern bool_t CT_PacketErrorRate(ct_event_t evType, void* pAssociatedValue, uint16_t lState);
+/* Genfsk RX handler */
+extern bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue);
+/* Genfsk TX handler */
+extern bool_t Genfsk_Send(ct_event_t evType, void* pAssociatedValue, uint16_t ledState);
 #endif

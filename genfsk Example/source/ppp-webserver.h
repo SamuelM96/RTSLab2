@@ -1,6 +1,5 @@
-/// ppp-blinky.h
-#ifndef PPPBLINKY_H
-#define PPPBLINKY_H
+#ifndef PPPWEBSERVER_H
+#define PPPWEBSERVER_H
 
 #include "stdint.h"
 
@@ -171,4 +170,4 @@ typedef struct pppType {
     } ipData; // ip related object
 } pppType;
 
-#endif /* PPP-BLINY_H */
+#endif /* PPPWEBSERVER_H */

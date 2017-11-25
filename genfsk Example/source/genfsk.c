@@ -1,12 +1,14 @@
 #include "MemManager.h"
 #include "RNG_Interface.h"
 #include "TimersManager.h"
-
 #include "genfsk_interface.h"
-#include "gen_fsk_tests_states.h"
-#include "gen_fsk_tests.h"
 #include "xcvr_test_fsk.h"
-#include "menus.h"
+#include "SerialManager.h"
+#include "LED.h"
+
+#include "genfsk.h"
+#include "genfsk_states.h"
+#include "genfsk_defs.h"
 
 /*! *********************************************************************************
 * Public memory declarations
@@ -23,18 +25,8 @@ ct_config_params_t gaConfigParams[5];
 /*! *********************************************************************************
 * Private macros
 ********************************************************************************** */
-#define gPerOpcode1 (0xCA)
-#define gPerOpcode2 (0xFE)
-
-// #define gRangeOpcode1 (0xAB)
-// #define gRangeOpcode2 (0xCD)
-/************************************************************************************
-* Private prototypes
-************************************************************************************/
-/* PER RX handler */
-static bool_t CT_PacketErrorRateRx(ct_event_t evType, void* pAssociatedValue, bool_t bReInit);
-/* PER TX handler */
-static bool_t CT_PacketErrorRateTx(ct_event_t evType, void* pAssociatedValue, bool_t bReInit, uint16_t lState);
+#define gRadioOpcode1 (0xAB)
+#define gRadioOpcode2 (0xDC)
 
 /************************************************************************************
 * Private memory declarations
@@ -46,9 +38,6 @@ static uint8_t* gTxBuffer;
 /* Generic FSK packets to get formatted data*/
 static GENFSK_packet_t gRxPacket;
 static GENFSK_packet_t gTxPacket;
-
-/* control if shortcuts are enabled or disabled*/
-static bool_t   bEnableShortcuts = FALSE;
 
 /*hook to notify app thread*/
 static pHookAppNotification pNotifyAppThread = NULL;
@@ -62,7 +51,6 @@ static GENFSK_packet_config_t pktConfig =
     .packetType = gGenfskFormattedPacket,
     .lengthSizeBits = gGenFskDefaultLengthFieldSize_c,
     .lengthBitOrder = gGenfskLengthBitLsbFirst,
-    /*sync address bytes = size + 1*/
     .syncAddrSizeBytes = gGenFskDefaultSyncAddrSize_c,
     .lengthAdjBytes = 3, /*length field not including CRC so adjust by crc len*/
     .h0SizeBits = gGenFskDefaultH0FieldSize_c,
@@ -124,10 +112,8 @@ static GENFSK_nwk_addr_match_t ntwkAddr =
 }; 
 
 /**********************************************************************************/
-void CT_GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc)
+void GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc)
 {
-    bEnableShortcuts = TRUE;
-
     /*configure hook*/
     pNotifyAppThread = pFunc;
     
@@ -188,58 +174,36 @@ void CT_GenFskInit(pHookAppNotification pFunc, pTmrHookNotification pTmrFunc)
     GENFSK_SetChannelNumber(mAppGenfskId, gGenFskDefaultChannel_c);
 }
 
-/****************************************************************************
-*****************************Packet error rate*******************************
-****************************************************************************/
-bool_t CT_PacketErrorRate(ct_event_t evType, void* pAssociatedValue, uint16_t lState)
-{
-    bool_t bReturnFromSM = FALSE;
-    static uint8_t currentTest = 0;
-    static uint16_t ledState = 0;
-    ledState = lState;
-    
-    // bReturnFromSM = CT_PacketErrorRateRx(evType, pAssociatedValue, (currentTest != 'R'));
-    // currentTest = bReturnFromSM? 0 : 'R';
-
-    bReturnFromSM = CT_PacketErrorRateTx(evType, pAssociatedValue, currentTest != 'T', ledState);
-    currentTest = bReturnFromSM? 0 : 'T';
-
-    return bReturnFromSM;
-}
-
 /*! *********************************************************************************
 * \brief  Handles the Packet error rate RX test
 ********************************************************************************** */
-static bool_t CT_PacketErrorRateRx(ct_event_t evType, 
-                                   void* pAssociatedValue, 
-                                   bool_t bReInit)
+bool_t Genfsk_Receive(ct_event_t evType, void* pAssociatedValue)
 {
-    static ct_per_rx_states_t perRxState = gPerRxStateInit_c; 
+	static bool_t initialised = false;
     static int32_t  i32RssiSum;
-    static uint16_t u16ReceivedPackets;
-    static uint16_t u16PacketsIndex;  
-    static uint16_t u16TotalPackets;
+    // static uint16_t u16ReceivedPackets;
+    static uint16_t u16LedState;  
+    static uint16_t u16PacketIndex;
     
-    int8_t   i8AverageRssi = 0;
     ct_rx_indication_t* pIndicationInfo = NULL;
     uint8_t* pRxBuffer = NULL;
     bool_t bRestartRx = FALSE;
     bool_t bReturnFromSM = FALSE;
     
-    if(bReInit) /* Reset the state machine */
+    if(!initialised) /* Reset the state machine */
     {
-        u16TotalPackets = 0;
-        u16ReceivedPackets = 0;
-        u16PacketsIndex = 0;
+        u16PacketIndex = 0;
+        u16LedState = 0;
         i32RssiSum = 0;
 
-        Serial_Print(mAppSerId, cu8PerRxMessages[0], gAllowToBlock_d);
+        Serial_Print(mAppSerId, "\f\n\rRADIO Rx Running\r\n\r\n", gAllowToBlock_d);
 
         if(gGenfskSuccess_c != GENFSK_StartRx(mAppGenfskId, gRxBuffer, gGenFskDefaultMaxBufferSize_c + crcConfig.crcSize, 0, 0)) {
         	GENFSK_AbortAll();
-            Serial_Print(mAppSerId, cu8PerRxMessages[1], gAllowToBlock_d);
-            perRxState = gPerRxStateIdle_c;
+            Serial_Print(mAppSerId, "\n\rRADIO Rx failed.\r\n\r\n", gAllowToBlock_d);
         }
+
+        initialised = true;
     }
 
     /*check if RX related events are fired */
@@ -251,16 +215,34 @@ static bool_t CT_PacketErrorRateRx(ct_event_t evType,
                 
                 /*map rx buffer to generic fsk packet*/
                 GENFSK_ByteArrayToPacket(mAppGenfskId, pRxBuffer, &gRxPacket);
-                if(gRxPacket.payload[4] == gPerOpcode1 && 
-                   gRxPacket.payload[5] == gPerOpcode2) /* check if packet payload is PER type */
+                if(gRxPacket.payload[4] == gRadioOpcode1 && 
+                   gRxPacket.payload[5] == gRadioOpcode2) /* check if packet payload is RADIO type */
                 {
-                    u16TotalPackets = ((uint16_t)gRxPacket.payload[0] <<8) + gRxPacket.payload[1];
-                    u16PacketsIndex = ((uint16_t)gRxPacket.payload[2] <<8) + gRxPacket.payload[3];
-                    u16ReceivedPackets++;
+                    u16PacketIndex = ((uint16_t)gRxPacket.payload[0] <<8) + gRxPacket.payload[1];
+                    u16LedState = ((uint16_t)gRxPacket.payload[2] <<8) + gRxPacket.payload[3];
                     i32RssiSum += (int8_t)(pIndicationInfo->rssi);
                     
+                    if (u16LedState == 1) {
+                    	Led3On();
+                    } else {
+                    	Led3Off();
+                    }
+
                     /* print statistics */
-                    PrintPerRxInfo(u16PacketsIndex, u16ReceivedPackets, pIndicationInfo, mAppSerId);
+                    int8_t i8TempRssiValue = (int8_t)(pIndicationInfo->rssi);
+                    Serial_Print(mAppSerId, "Packet ", gAllowToBlock_d);
+                    Serial_PrintDec(mAppSerId,(uint32_t)u16PacketIndex);
+                    Serial_Print(mAppSerId, ". LED State: ",gAllowToBlock_d);
+                    Serial_PrintDec(mAppSerId, (uint32_t)u16LedState);
+                    Serial_Print(mAppSerId, ". Rssi: ", gAllowToBlock_d);
+                    if(i8TempRssiValue < 0) {
+                    	i8TempRssiValue *= -1;
+                        Serial_Print(mAppSerId, "-", gAllowToBlock_d);
+                    }
+                    Serial_PrintDec(mAppSerId, (uint32_t)i8TempRssiValue);
+                    Serial_Print(mAppSerId, ". Timestamp: ", gAllowToBlock_d);
+                    Serial_PrintDec(mAppSerId, (uint32_t)pIndicationInfo->timestamp);
+                    Serial_Print(mAppSerId, "\r\n", gAllowToBlock_d);
                     
                     bRestartRx = TRUE;
                 } 
@@ -278,17 +260,10 @@ static bool_t CT_PacketErrorRateRx(ct_event_t evType,
             if(bRestartRx) {
                 if(gGenfskSuccess_c != GENFSK_StartRx(mAppGenfskId, gRxBuffer, gGenFskDefaultMaxBufferSize_c + crcConfig.crcSize, 0, 0)) {
                     GENFSK_AbortAll();
-                    Serial_Print(mAppSerId, cu8PerRxMessages[1], gAllowToBlock_d);
-                    perRxState = gPerRxStateIdle_c; 
+                    Serial_Print(mAppSerId, "\n\rRADIO Rx failed.\r\n\r\n", gAllowToBlock_d);
                 }
             }  
         }
-
-    if (perRxState == gPerRxStateIdle_c && gCtEvtSelfEvent_c == evType) {
-        /* print statistics for PER test */
-        i8AverageRssi = u16ReceivedPackets > 0 ? i32RssiSum/u16ReceivedPackets : 0;
-        PrintPerRxFinal(u16ReceivedPackets, u16TotalPackets, i8AverageRssi, mAppSerId);
-    }
 
     return bReturnFromSM;      
 }
@@ -296,37 +271,33 @@ static bool_t CT_PacketErrorRateRx(ct_event_t evType,
 /*! *********************************************************************************
 * \brief  Handles the Packet error rate TX test
 ********************************************************************************** */
-static bool_t CT_PacketErrorRateTx(ct_event_t evType, 
-                                   void* pAssociatedValue, 
-                                   bool_t bReInit,
-								   uint16_t ledState)
+bool_t Genfsk_Send(ct_event_t evType, void* pAssociatedValue, uint16_t ledState)
 {
-    static ct_per_tx_states_t perTxState = gPerTxStateInit_c;
+	static bool_t initialised = false;
+    static ct_radio_tx_states_t radioTxState = gRadioTxStateInit_c;
     static uint32_t miliSecDelay;
 
-    static uint16_t u16TotalPackets = 500;
-//    static uint16_t u16SentPackets;
+    static uint16_t u16PacketIndex = 0;
     
     uint16_t buffLen = 0;
     bool_t bReturnFromSM = FALSE;
 
-    if(bReInit) {
-        perTxState = gPerTxStateInit_c;
+    if(!initialised) {
+        radioTxState = gRadioTxStateInit_c;
         miliSecDelay = 10;
 
-//        pNotifyAppThread();
-
         miliSecDelay *= 1000; /*convert into microseconds*/
-//        u16SentPackets = 20;
-        
+
+        u16PacketIndex++;
+
         gTxPacket.header.lengthField = (uint16_t)gaConfigParams[3].paramValue.decValue;
 
-        gTxPacket.payload[0] = (u16TotalPackets >> 8);
-        gTxPacket.payload[1] = (uint8_t)u16TotalPackets;
+        gTxPacket.payload[0] = (u16PacketIndex >> 8);
+        gTxPacket.payload[1] = (uint8_t)u16PacketIndex;
         gTxPacket.payload[2] = ((ledState) >> 8);
         gTxPacket.payload[3] = (uint8_t)(ledState);
-        gTxPacket.payload[4] = gPerOpcode1;
-        gTxPacket.payload[5] = gPerOpcode2;
+        gTxPacket.payload[4] = gRadioOpcode1;
+        gTxPacket.payload[5] = gRadioOpcode2;
         
         /*pack everything into a buffer*/
         GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
@@ -335,51 +306,41 @@ static bool_t CT_PacketErrorRateTx(ct_event_t evType,
                     (gGenFskDefaultHeaderSizeBytes_c)+
                         (gGenFskDefaultSyncAddrSize_c + 1);
                 
-        if(gGenfskSuccess_c != /*start tx at current time + input delay*/
-           GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, 0))
-        {
+        /*start tx at current time + input delay*/
+        if(gGenfskSuccess_c != GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, 0)) {
             GENFSK_AbortAll();
-            Serial_Print(mAppSerId, cu8PerTxMessages[2], gAllowToBlock_d);
-            perTxState = gPerTxStateIdle_c;
+            Serial_Print(mAppSerId, "\r\n\r\nRadio TX failed.\r\n\r\n", gAllowToBlock_d);
+            radioTxState = gRadioTxStateIdle_c;
         }
-//        u16SentPackets++;
-        Serial_Print(mAppSerId, cu8PerTxMessages[3], gAllowToBlock_d);
-        Serial_PrintDec(mAppSerId, (uint32_t)u16TotalPackets);
+
+        Serial_Print(mAppSerId, "\f\r\n Running RADIO Tx, Number of packets: ", gAllowToBlock_d);
+        Serial_PrintDec(mAppSerId, (uint32_t)u16PacketIndex);
         
-        perTxState = gPerTxStateRunningTest_c;
+        radioTxState = gRadioTxStateRunning_c;
+        initialised = true;
     }
 
-    if (perTxState == gPerTxStateRunningTest_c) {
-        if(gCtEvtTxDone_c == evType) {
-            PrintPerTxPackets(ledState,
-                              (gGenfskSuccess == *((genfskEventStatus_t*)pAssociatedValue)),
-                              mAppSerId);
-            
-//            if(u16SentPackets == u16TotalPackets) {
-//                Serial_Print(mAppSerId, cu8PerTxMessages[4], gAllowToBlock_d);
-//                perTxState = gPerTxStateIdle_c;
-//            } else {
-                gTxPacket.payload[2] = ((ledState) >> 8);
-                gTxPacket.payload[3] = (uint8_t)(ledState);
-                /*pack everything into a buffer*/
-                GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
-                /*calculate buffer length*/
-                buffLen = gTxPacket.header.lengthField+
-                    (gGenFskDefaultHeaderSizeBytes_c)+
-                        (gGenFskDefaultSyncAddrSize_c + 1);
+     if (radioTxState == gRadioTxStateRunning_c) {
+         if(gCtEvtTxDone_c == evType) {
+                 u16PacketIndex++;
+                 gTxPacket.payload[0] = ((u16PacketIndex) >> 8);
+                 gTxPacket.payload[1] = (uint8_t)(u16PacketIndex);
+                 gTxPacket.payload[2] = ((ledState) >> 8);
+                 gTxPacket.payload[3] = (uint8_t)(ledState);
+                 /*pack everything into a buffer*/
+                 GENFSK_PacketToByteArray(mAppGenfskId, &gTxPacket, gTxBuffer);
+                 /*calculate buffer length*/
+                 buffLen = gTxPacket.header.lengthField+
+                     (gGenFskDefaultHeaderSizeBytes_c)+
+                         (gGenFskDefaultSyncAddrSize_c + 1);
                 
-                if(gGenfskSuccess_c != GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, GENFSK_GetTimestamp() + miliSecDelay)) {
-                    GENFSK_AbortAll();
-                    Serial_Print(mAppSerId, cu8PerTxMessages[5], gAllowToBlock_d);
-                    perTxState = gPerTxStateIdle_c;
-                }
-                
-//                u16SentPackets++;
-//            }
-        }
-    } else {
-            pNotifyAppThread();
-    }
+                 if(gGenfskSuccess_c != GENFSK_StartTx(mAppGenfskId, gTxBuffer, buffLen, GENFSK_GetTimestamp() + miliSecDelay)) {
+                     GENFSK_AbortAll();
+                     Serial_Print(mAppSerId, "\r\n\r\nRadio TX failed.\r\n\r\n", gAllowToBlock_d);
+                     radioTxState = gRadioTxStateIdle_c;
+                 }
+         }
+     }
     
     return bReturnFromSM;      
 }
